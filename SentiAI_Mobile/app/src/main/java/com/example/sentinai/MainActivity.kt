@@ -1,0 +1,95 @@
+package com.example.sentinai
+
+import android.content.pm.PackageManager
+import android.os.Bundle
+import android.util.Log
+import android.widget.Button
+import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+
+class MainActivity : AppCompatActivity() {
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        val auditButton = findViewById<Button>(R.id.auditButton)
+        auditButton.setOnClickListener {
+            scanAndSendApps()
+        }
+    }
+
+    private fun scanAndSendApps() {
+        val pm = packageManager
+        val packages = pm.getInstalledPackages(0)
+
+        CoroutineScope(Dispatchers.IO).launch {
+            for (packageInfo in packages) {
+                val appName = packageInfo.applicationInfo?.loadLabel(pm).toString()
+
+                // Fetching permissions properly
+                val info = pm.getPackageInfo(packageInfo.packageName, PackageManager.GET_PERMISSIONS)
+                val permissions = info.requestedPermissions?.joinToString(", ") ?: "None"
+
+                sendToServer(appName, permissions)
+
+                // This delay prevents the phone from lagging
+                delay(1000)
+            }
+        }
+    }
+
+    private fun sendToServer(name: String, perms: String) {
+        val client = OkHttpClient()
+        val json = JSONObject().apply {
+            put("app_name", name)
+            put("permissions", perms)
+        }
+
+        val body = json.toString().toRequestBody("application/json".toMediaType())
+        val request = Request.Builder()
+            .url("http://10.0.2.2:8000/audit")
+            .post(body)
+            .build()
+
+        try {
+            client.newCall(request).execute().use { response ->
+                val responseData = response.body?.string()
+                val jsonResponse = JSONObject(responseData ?: "{}")
+                val verdict = jsonResponse.getString("verdict")
+
+                runOnUiThread {
+                    val resultsTextView = findViewById<TextView>(R.id.resultsText)
+                    val score = jsonResponse.optInt("score",1)
+
+
+
+                    if (resultsTextView.text.contains("Results will appear here")) {
+                        resultsTextView.text = ""
+                    }
+
+                    // Use a clear visual separator
+                    val entry = """
+        
+        📍 APP: $name
+        ⚖️ VERDICT: $verdict
+        -----------------------------------
+    """.trimIndent()
+
+                    resultsTextView.append(entry)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("SentinAI", "Network Error: ${e.message}")
+        }
+    }
+}
