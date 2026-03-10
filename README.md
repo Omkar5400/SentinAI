@@ -13,7 +13,7 @@ Extraction: The Android client identifies sensitive permission strings from the 
 
 Retrieval: The Python backend queries the vector store to pull specific compliance sections from the Android 14 CDD.
 
-Reasoning: The LLM analyzes the app's permissions against the retrieved CDD context to generate a factual risk score (1-10) and verdict.
+Reasoning: The LLM analyzes the app's permissions against the retrieved CDD context to generate a factual risk and verdict.
 
 Delivery: The mobile UI dynamically color-codes results (Safe/Warning/Critical) based on the AI's structured response.
 
